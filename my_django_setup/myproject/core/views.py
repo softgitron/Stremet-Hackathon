@@ -1,13 +1,24 @@
 from decimal import Decimal
 
+from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from . import models, serializers
-from .services import compute_quote_cost, create_work_order_from_quote, save_quote_version, transition_quote
+from .services import (
+    auto_schedule_work_order,
+    compute_quote_cost,
+    compute_resource_estimate,
+    create_pick_list_from_work_order,
+    create_work_order_from_quote,
+    log_audit,
+    reserve_materials_for_step,
+    save_quote_version,
+    transition_quote,
+)
 
 
 def _profile(request):
@@ -264,6 +275,12 @@ class ManufacturingPlanViewSet(viewsets.ModelViewSet):
         inst = serializer.instance
         models.Quote.objects.filter(preliminary_manufacturing_plan=inst).update(needs_recalculation=True)
 
+    @action(detail=True, methods=["post"], url_path="estimate-resources")
+    def estimate_resources(self, request, pk=None):
+        plan = self.get_object()
+        est = compute_resource_estimate(plan, request.user)
+        return Response(serializers.ResourceEstimateSerializer(est).data, status=status.HTTP_201_CREATED)
+
 
 class ManufacturingStepViewSet(viewsets.ModelViewSet):
     queryset = models.ManufacturingStep.objects.select_related("plan")
@@ -278,6 +295,30 @@ class ManufacturingStepViewSet(viewsets.ModelViewSet):
         serializer.save(updated_by=self.request.user)
         plan = serializer.instance.plan
         models.Quote.objects.filter(preliminary_manufacturing_plan=plan).update(needs_recalculation=True)
+
+
+class StepInputMaterialViewSet(viewsets.ModelViewSet):
+    queryset = models.StepInputMaterial.objects.select_related("step", "inventory_item")
+    serializer_class = serializers.StepInputMaterialSerializer
+    filterset_fields = ("step", "inventory_item")
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user, updated_by=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self.request.user)
+
+
+class StepOutputPartViewSet(viewsets.ModelViewSet):
+    queryset = models.StepOutputPart.objects.select_related("step", "part")
+    serializer_class = serializers.StepOutputPartSerializer
+    filterset_fields = ("step", "part")
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user, updated_by=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self.request.user)
 
 
 class StepArtifactViewSet(viewsets.ModelViewSet):
@@ -330,6 +371,45 @@ class MachineViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         serializer.save(updated_by=self.request.user)
 
+    @action(detail=True, methods=["post"], url_path="set-state")
+    def set_state(self, request, pk=None):
+        machine = self.get_object()
+        new_state = request.data.get("state")
+        if new_state not in dict(models.Machine.MachineState.choices):
+            raise ValidationError(f"Invalid state: {new_state}")
+        old = machine.state
+        machine.state = new_state
+        machine.updated_by = request.user
+        machine.save()
+        log_audit(
+            user=request.user,
+            action="machine_state_change",
+            entity_type="Machine",
+            entity_id=str(machine.id),
+            before={"state": old},
+            after={"state": new_state},
+        )
+        return Response(serializers.MachineSerializer(machine).data)
+
+    @action(detail=True, methods=["get"], url_path="utilization")
+    def utilization(self, request, pk=None):
+        machine = self.get_object()
+        active_maint = machine.maintenance_windows.filter(
+            starts_at__lte=timezone.now(), ends_at__gte=timezone.now(), completed=False
+        ).count()
+        return Response({
+            "identifier": machine.identifier,
+            "state": machine.state,
+            "capacity_hours_per_day": str(machine.capacity_hours_per_day),
+            "scheduled_workload_hours": str(machine.scheduled_workload_hours),
+            "actual_usage_hours": str(machine.actual_usage_hours),
+            "utilization_pct": str(
+                (machine.actual_usage_hours / machine.capacity_hours_per_day * 100).quantize(Decimal("0.01"))
+                if machine.capacity_hours_per_day else Decimal("0")
+            ),
+            "active_maintenance_windows": active_maint,
+        })
+
 
 class MachineMaintenanceWindowViewSet(viewsets.ModelViewSet):
     queryset = models.MachineMaintenanceWindow.objects.select_related("machine")
@@ -371,6 +451,28 @@ class InventoryItemViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         serializer.save(updated_by=self.request.user)
 
+    @action(detail=True, methods=["post"], url_path="adjust")
+    def adjust_stock(self, request, pk=None):
+        item = self.get_object()
+        delta = Decimal(request.data.get("quantity_delta", "0"))
+        movement_type = request.data.get("movement_type", "adjust")
+        reference = request.data.get("reference", "")
+        if movement_type not in dict(models.StockMovement.MovementType.choices):
+            raise ValidationError(f"Invalid movement_type: {movement_type}")
+        item.quantity += delta
+        item.updated_by = request.user
+        item.save()
+        models.StockMovement.objects.create(
+            inventory_item=item,
+            movement_type=movement_type,
+            quantity_delta=delta,
+            reference=reference,
+            performed_by=request.user,
+            created_by=request.user,
+            updated_by=request.user,
+        )
+        return Response(serializers.InventoryItemSerializer(item).data)
+
 
 class CustomerOrderViewSet(RoleScopedMixin, viewsets.ModelViewSet):
     queryset = models.CustomerOrder.objects.select_related("customer", "source_quote")
@@ -380,14 +482,27 @@ class CustomerOrderViewSet(RoleScopedMixin, viewsets.ModelViewSet):
     search_fields = ("order_number", "notes")
 
 
-class WorkOrderViewSet(viewsets.ReadOnlyModelViewSet):
+class WorkOrderViewSet(viewsets.ModelViewSet):
     """Work orders are created via quote approval or `POST .../quotes/{id}/generate-work-order/`."""
 
     queryset = models.WorkOrder.objects.select_related("customer_order", "source_quote")
     serializer_class = serializers.WorkOrderSerializer
+    http_method_names = ["get", "patch", "put", "head", "options"]
     filterset_fields = ("customer_order", "source_quote", "priority")
     ordering_fields = ("created_at", "delivery_deadline", "completion_percent", "wo_number")
     search_fields = ("wo_number",)
+
+    @action(detail=True, methods=["post"], url_path="auto-schedule")
+    def auto_schedule(self, request, pk=None):
+        wo = self.get_object()
+        results = auto_schedule_work_order(wo, request.user)
+        return Response({"scheduled": len(results)})
+
+    @action(detail=True, methods=["post"], url_path="generate-pick-list")
+    def generate_pick_list(self, request, pk=None):
+        wo = self.get_object()
+        pl = create_pick_list_from_work_order(wo, request.user)
+        return Response(serializers.PickListSerializer(pl).data, status=status.HTTP_201_CREATED)
 
 
 class WorkOrderStepViewSet(viewsets.ModelViewSet):
@@ -409,6 +524,67 @@ class WorkOrderStepViewSet(viewsets.ModelViewSet):
                 Decimal("0.01")
             )
             wo.save(update_fields=["completion_percent", "updated_at"])
+
+    @action(detail=True, methods=["post"], url_path="start")
+    def start_step(self, request, pk=None):
+        step = self.get_object()
+        if step.status not in (
+            models.WorkOrderStep.ExecutionStatus.PENDING,
+            models.WorkOrderStep.ExecutionStatus.READY,
+        ):
+            raise ValidationError("Step cannot be started from current status.")
+        step.status = models.WorkOrderStep.ExecutionStatus.IN_PROGRESS
+        step.actual_start = timezone.now()
+        step.updated_by = request.user
+        step.save()
+        reserve_materials_for_step(step, request.user)
+        log_audit(
+            user=request.user,
+            action="step_started",
+            entity_type="WorkOrderStep",
+            entity_id=str(step.id),
+            after={"status": step.status, "actual_start": str(step.actual_start)},
+        )
+        return Response(serializers.WorkOrderStepSerializer(step).data)
+
+    @action(detail=True, methods=["post"], url_path="complete")
+    def complete_step(self, request, pk=None):
+        step = self.get_object()
+        if step.status != models.WorkOrderStep.ExecutionStatus.IN_PROGRESS:
+            raise ValidationError("Only in-progress steps can be completed.")
+        step.status = models.WorkOrderStep.ExecutionStatus.COMPLETED
+        step.actual_end = timezone.now()
+        step.updated_by = request.user
+        step.save()
+        wo = step.work_order
+        steps = list(wo.steps.all())
+        done = sum(1 for s in steps if s.status == models.WorkOrderStep.ExecutionStatus.COMPLETED)
+        wo.completion_percent = (Decimal(done) / Decimal(len(steps)) * Decimal("100")).quantize(Decimal("0.01"))
+        wo.save(update_fields=["completion_percent", "updated_at"])
+        log_audit(
+            user=request.user,
+            action="step_completed",
+            entity_type="WorkOrderStep",
+            entity_id=str(step.id),
+            after={"status": step.status, "actual_end": str(step.actual_end)},
+        )
+        return Response(serializers.WorkOrderStepSerializer(step).data)
+
+    @action(detail=True, methods=["post"], url_path="block")
+    def block_step(self, request, pk=None):
+        step = self.get_object()
+        step.status = models.WorkOrderStep.ExecutionStatus.BLOCKED
+        step.issue_log = request.data.get("issue", step.issue_log)
+        step.updated_by = request.user
+        step.save()
+        log_audit(
+            user=request.user,
+            action="step_blocked",
+            entity_type="WorkOrderStep",
+            entity_id=str(step.id),
+            after={"status": step.status, "issue_log": step.issue_log},
+        )
+        return Response(serializers.WorkOrderStepSerializer(step).data)
 
 
 class ScheduledStepViewSet(viewsets.ModelViewSet):

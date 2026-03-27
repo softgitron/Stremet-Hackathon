@@ -153,6 +153,20 @@ class ManufacturingStepSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "revision", "created_at", "updated_at")
 
 
+class StepInputMaterialSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.StepInputMaterial
+        fields = "__all__"
+        read_only_fields = ("id", "revision", "created_at", "updated_at")
+
+
+class StepOutputPartSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.StepOutputPart
+        fields = "__all__"
+        read_only_fields = ("id", "revision", "created_at", "updated_at")
+
+
 class StepArtifactSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.StepArtifact
