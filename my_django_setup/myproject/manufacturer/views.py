@@ -1,7 +1,16 @@
 from django.shortcuts import render
-from home.models import Order  # <-- Importing from home!
+
+from core.models import WorkOrder
+
 
 def manufacturer_panel(request):
-    """View for Manufacturers to update stages and view client logs."""
-    active_orders = Order.objects.exclude(status='delivered')
-    return render(request, 'manufacturer/manufacturer_panel.html', {'orders': active_orders})
+    """Shop floor: active work orders from the unified core model."""
+    work_orders = WorkOrder.objects.select_related("customer_order", "source_quote").order_by(
+        "-priority",
+        "delivery_deadline",
+    )[:50]
+    return render(
+        request,
+        "manufacturer/manufacturer_panel.html",
+        {"work_orders": work_orders},
+    )

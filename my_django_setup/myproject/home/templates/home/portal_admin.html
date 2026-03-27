@@ -1,0 +1,59 @@
+{% extends "home/base_portal.html" %}
+{% block title %}Stremet | Operations admin{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <h1 class="h3 mb-1" style="color: var(--st-admin);">Operations overview</h1>
+    <p class="text-muted mb-0">High-level counts; configure users, roles, and permissions in Django admin or via API.</p>
+</div>
+
+<div class="row g-3">
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="card kpi-card h-100 text-center">
+            <div class="card-body py-3">
+                <div class="small text-muted">Quotes</div>
+                <div class="h2 mb-0">{{ quotes }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="card kpi-card h-100 text-center">
+            <div class="card-body py-3">
+                <div class="small text-muted">Orders</div>
+                <div class="h2 mb-0">{{ orders }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="card kpi-card h-100 text-center">
+            <div class="card-body py-3">
+                <div class="small text-muted">Work orders</div>
+                <div class="h2 mb-0">{{ work_orders }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="card kpi-card h-100 text-center">
+            <div class="card-body py-3">
+                <div class="small text-muted">Machines</div>
+                <div class="h2 mb-0">{{ machines }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="card kpi-card h-100 text-center">
+            <div class="card-body py-3">
+                <div class="small text-muted">Inventory items</div>
+                <div class="h2 mb-0">{{ inventory_items }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4 shadow-sm">
+    <div class="card-body">
+        <h2 class="h6 text-uppercase text-muted fw-semibold mb-2">Administration</h2>
+        <p class="small text-muted mb-2">User profiles and roles: <code>/api/v1/user-profiles/</code>. Permission matrix: <code>/api/v1/permissions/</code>. Audit log: <code>/api/v1/audit-log/</code>.</p>
+        <a href="/admin/" class="btn btn-primary btn-sm">Django admin</a>
+    </div>
+</div>
+{% endblock %}

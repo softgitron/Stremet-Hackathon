@@ -1,0 +1,30 @@
+{% extends "home/base_portal.html" %}
+{% block extra_css %}
+<style>
+    #id_username, #id_password { display: block; width: 100%; padding: .375rem .75rem; border: 1px solid #ced4da; border-radius: .375rem; }
+</style>
+{% endblock %}
+{% block title %}Log in | Stremet{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width: 400px;">
+    <h1 class="h4 mb-3">Log in</h1>
+    <p class="text-muted small">Session login unlocks the browsable API and authenticated <code>/api/v1/</code> requests.</p>
+    {% if form.errors %}
+        <div class="alert alert-danger small">Invalid username or password.</div>
+    {% endif %}
+    <form method="post" action="{% url 'login' %}">
+        {% csrf_token %}
+        {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+        <div class="mb-3">
+            <label class="form-label" for="{{ form.username.id_for_label }}">Username</label>
+            {{ form.username }}
+            {% if form.username.errors %}<div class="text-danger small">{{ form.username.errors }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="{{ form.password.id_for_label }}">Password</label>
+            {{ form.password }}
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Log in</button>
+    </form>
+</div>
+{% endblock %}

@@ -38,11 +38,65 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'home',            
-    'administrator',   
-    'customer',        
-    'manufacturer',    
+    'rest_framework',
+    'django_filters',
+    'drf_spectacular',
+    'core',
+    'home',
+    'administrator',
+    'customer',
+    'manufacturer',
 ]
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_PAGINATION_CLASS': 'core.pagination.StandardResultsPagination',
+    'PAGE_SIZE': 25,
+    'EXCEPTION_HANDLER': 'core.exceptions.stremet_exception_handler',
+}
+
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Stremet Manufacturing API',
+    'DESCRIPTION': (
+        'Sheet metal quotation, manufacturing, and warehouse. '
+        'Canonical base path: `/api/v1/`. List endpoints support `page`, `page_size`, '
+        '`ordering`, and resource-specific filters (see each operation). '
+        'Errors return JSON: `{ "success": false, "error": { "code", "message", "http_status", "fields" } }`.'
+    ),
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SCHEMA_PATH_PREFIX': '/api/v1',
+    'ENUM_NAME_OVERRIDES': {
+        'QuoteStateEnum': 'core.models.quote.Quote.QuoteState',
+        'MachineStateEnum': 'core.models.machine.Machine.MachineState',
+        'InventoryStatusEnum': 'core.models.warehouse.InventoryItem.InventoryStatus',
+        'WorkOrderStepStatusEnum': 'core.models.operations.WorkOrderStep.ExecutionStatus',
+        'ManufacturingStepStatusEnum': 'core.models.manufacturing.ManufacturingStep.StepStatus',
+        'CustomerOrderStatusEnum': 'core.models.customer.CustomerOrder.OrderStatus',
+    },
+}
+
+# Large CAD uploads (bytes); also configure reverse proxy limits in production.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 524_288_000
+FILE_UPLOAD_MAX_MEMORY_SIZE = 524_288_000
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

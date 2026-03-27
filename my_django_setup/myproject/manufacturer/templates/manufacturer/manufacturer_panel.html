@@ -1,0 +1,41 @@
+{% extends "home/base_portal.html" %}
+{% block title %}Stremet | Manufacturing{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <h1 class="h3 mb-1" style="color: var(--st-mfg);">Production — work orders</h1>
+    <p class="text-muted small mb-0">Shop-floor list; update steps via <code class="api-chip">PATCH /api/v1/work-order-steps/{id}/</code>.</p>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>WO</th>
+                        <th>Order</th>
+                        <th>Quote</th>
+                        <th>Deadline</th>
+                        <th class="text-end">Progress</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for wo in work_orders %}
+                    <tr>
+                        <td class="fw-semibold font-monospace">{{ wo.wo_number }}</td>
+                        <td>{{ wo.customer_order.order_number }}</td>
+                        <td>{{ wo.source_quote.quote_number }}</td>
+                        <td>{{ wo.delivery_deadline|default:"—" }}</td>
+                        <td class="text-end"><span class="badge bg-dark">{{ wo.completion_percent }}%</span></td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-muted p-4">No work orders. Approve a quote through the API to generate one.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

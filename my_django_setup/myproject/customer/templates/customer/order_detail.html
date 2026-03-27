@@ -1,0 +1,59 @@
+{% extends "home/base_portal.html" %}
+{% block title %}Order {{ order.order_number }} | Stremet{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb small mb-0">
+        <li class="breadcrumb-item"><a href="{% url 'customer_dashboard' %}">Customer</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ order.order_number }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1 font-monospace">{{ order.order_number }}</h1>
+        <p class="mb-0"><span class="badge text-bg-secondary">{{ order.get_status_display }}</span></p>
+    </div>
+    <div class="text-end small">
+        <div><strong>Delivery target</strong> {{ order.delivery_deadline|default:"TBD" }}</div>
+        {% if order.source_quote %}
+        <div class="mt-1"><a href="{% url 'customer_quote_detail' order.source_quote.id %}">Quote {{ order.source_quote.quote_number }}</a></div>
+        {% endif %}
+    </div>
+</div>
+
+<p class="text-muted small mb-4">Order progress is driven by work orders on the shop floor. Percentages update as steps complete.</p>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold">Work orders</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>WO</th>
+                        <th>Deadline</th>
+                        <th class="text-end">Completion</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for wo in work_orders %}
+                    <tr>
+                        <td class="font-monospace fw-semibold">{{ wo.wo_number }}</td>
+                        <td>{{ wo.delivery_deadline|default:"—" }}</td>
+                        <td class="text-end">
+                            <div class="progress" style="height: 1.25rem; min-width: 120px;" title="{{ wo.completion_percent }}%">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: {{ wo.completion_percent }}%;" aria-valuenow="{{ wo.completion_percent }}" aria-valuemin="0" aria-valuemax="100">{{ wo.completion_percent }}%</div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="3" class="text-muted p-4">No work orders linked to this order yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<a href="{% url 'customer_dashboard' %}" class="btn btn-outline-secondary">← Back to overview</a>
+{% endblock %}

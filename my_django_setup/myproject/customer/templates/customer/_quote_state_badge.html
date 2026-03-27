@@ -1,0 +1,15 @@
+{% if state == "draft" %}
+<span class="badge text-bg-secondary">Draft</span>
+{% elif state == "in_review" %}
+<span class="badge text-bg-info text-dark">In review</span>
+{% elif state == "customer_review" %}
+<span class="badge text-bg-primary">Customer review</span>
+{% elif state == "approved" %}
+<span class="badge text-bg-success">Approved</span>
+{% elif state == "rejected" %}
+<span class="badge text-bg-danger">Rejected</span>
+{% elif state == "expired" %}
+<span class="badge text-bg-dark">Expired</span>
+{% else %}
+<span class="badge text-bg-light text-dark">{{ state }}</span>
+{% endif %}

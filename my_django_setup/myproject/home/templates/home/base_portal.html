@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Stremet{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --st-bg: #f4f6f9;
+            --st-admin: #2c3e50;
+            --st-sales: #16a085;
+            --st-design: #8e44ad;
+            --st-customer: #2980b9;
+            --st-mfg: #e67e22;
+            --st-wh: #27ae60;
+        }
+        body { background-color: var(--st-bg); min-height: 100vh; display: flex; flex-direction: column; }
+        .portal-navbar {
+            background: linear-gradient(90deg, var(--st-admin) 0%, #34495e 100%);
+            color: #fff;
+        }
+        .portal-navbar .nav-link { color: rgba(255,255,255,.85); }
+        .portal-navbar .nav-link:hover { color: #fff; }
+        .portal-footer { margin-top: auto; font-size: .875rem; color: #6c757d; }
+        .kpi-card { border: none; box-shadow: 0 4px 12px rgba(0,0,0,.06); transition: transform .15s ease; }
+        .kpi-card:hover { transform: translateY(-2px); }
+        .api-chip { font-size: .75rem; }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<nav class="portal-navbar navbar navbar-expand-lg mb-4">
+    <div class="container">
+        <a class="navbar-brand fw-bold text-white" href="{% url 'home_dashboard' %}">Stremet</a>
+        <button class="navbar-toggler navbar-dark" type="button" data-bs-toggle="collapse" data-bs-target="#navMain">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navMain">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item"><a class="nav-link" href="{% url 'home_dashboard' %}">Home</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'portal_sales' %}">Sales</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'portal_design' %}">Design</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'customer_panel' %}">Customer</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'manufacturer_panel' %}">Manufacturing</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'portal_warehouse' %}">Warehouse</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'portal_admin' %}">Ops admin</a></li>
+            </ul>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <a href="/api/v1/docs/" class="btn btn-sm btn-outline-light" target="_blank" rel="noopener">API docs</a>
+                <a href="/admin/" class="btn btn-sm btn-light">Django admin</a>
+                {% if user.is_authenticated %}
+                    <span class="text-white-50 small">{{ user.username }}</span>
+                    <form action="{% url 'logout' %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-light">Log out</button>
+                    </form>
+                {% else %}
+                    <a href="{% url 'login' %}?next={{ request.path }}" class="btn btn-sm btn-warning">Log in</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</nav>
+
+<main class="container flex-grow-1 pb-5">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert {% if 'error' in message.tags %}alert-danger{% elif 'success' in message.tags %}alert-success{% elif 'warning' in message.tags %}alert-warning{% else %}alert-info{% endif %} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    {% block content %}{% endblock %}
+</main>
+
+<footer class="portal-footer border-top py-3 bg-white">
+    <div class="container d-flex flex-wrap justify-content-between gap-2">
+        <span>Sheet metal — quotes, manufacturing, warehouse. OpenAPI 3 at <code>/api/v1/schema/</code>.</span>
+        <span>List queries: <code>page</code>, <code>page_size</code>, <code>ordering</code>, <code>search</code> (where supported).</span>
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,60 @@
+{% extends "home/base_portal.html" %}
+{% block title %}Stremet | Sales{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1" style="color: var(--st-sales);">Sales workspace</h1>
+        <p class="text-muted mb-0">Quotes, collaboration, and design support — use the API for day-to-day work.</p>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card kpi-card h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Quotes total</div>
+                <div class="display-6 fw-semibold">{{ quote_total }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card kpi-card h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Open design requests</div>
+                <div class="display-6 fw-semibold">{{ open_design_requests }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white fw-semibold">Quotes by state</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead class="table-light"><tr><th>State</th><th class="text-end">Count</th></tr></thead>
+                <tbody>
+                    {% for row in quote_by_state %}
+                    <tr>
+                        <td><code>{{ row.state }}</code></td>
+                        <td class="text-end">{{ row.n }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="2" class="text-muted p-3">No quotes yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4">
+    <h2 class="h6 text-uppercase text-muted fw-semibold">Primary API resources</h2>
+    <ul class="small text-muted mb-0">
+        <li><code>GET/POST /api/v1/quotes/</code> — quotations</li>
+        <li><code>POST /api/v1/quotes/{id}/transition/</code> — workflow</li>
+        <li><code>GET/POST /api/v1/quote-threads/</code>, <code>quote-comments/</code>, <code>quote-attachments/</code></li>
+        <li><code>GET/POST /api/v1/design-support/</code> — design support requests</li>
+    </ul>
+</div>
+{% endblock %}
