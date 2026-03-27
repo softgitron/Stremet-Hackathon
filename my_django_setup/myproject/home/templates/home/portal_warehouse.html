@@ -2,12 +2,12 @@
 {% block title %}Stremet | Warehouse{% endblock %}
 {% block content %}
 <div class="mb-4">
-    <h1 class="h3 mb-1" style="color: var(--st-wh);">Warehouse</h1>
-    <p class="text-muted mb-0">Locations, inventory, picking, and movements — tablet-friendly lists via API.</p>
+    <h1 class="h3 mb-1" style="color: var(--st-wh);">Warehouse management</h1>
+    <p class="text-muted mb-0">Inventory, picking lists, storage locations, and stock movements.</p>
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-sm-6">
+    <div class="col-sm-6 col-lg-3">
         <div class="card kpi-card h-100">
             <div class="card-body">
                 <div class="text-muted small text-uppercase">Inventory SKUs</div>
@@ -15,24 +15,158 @@
             </div>
         </div>
     </div>
-    <div class="col-sm-6">
+    <div class="col-sm-6 col-lg-3">
         <div class="card kpi-card h-100">
             <div class="card-body">
-                <div class="text-muted small text-uppercase">Pick lists not completed</div>
-                <div class="display-6 fw-semibold">{{ pick_open }}</div>
+                <div class="text-muted small text-uppercase">Open pick lists</div>
+                <div class="display-6 fw-semibold text-warning">{{ pick_open }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card kpi-card h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Locations</div>
+                <div class="display-6 fw-semibold">{{ locations|length }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card kpi-card h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Low stock items</div>
+                <div class="display-6 fw-semibold text-danger">{{ low_stock|length }}</div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="card shadow-sm">
-    <div class="card-body">
-        <h2 class="h6 text-uppercase text-muted fw-semibold mb-3">API endpoints</h2>
-        <ul class="small text-muted mb-0">
-            <li><code>GET/POST /api/v1/warehouse-locations/</code>, <code>inventory-items/</code></li>
-            <li><code>GET/POST /api/v1/pick-lists/</code>, <code>pick-list-lines/</code>, <code>stock-movements/</code></li>
-            <li>List filters: <code>location</code>, <code>status</code>, <code>sku</code>, <code>search</code> (inventory).</li>
-        </ul>
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-semibold">Inventory items</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>SKU</th>
+                                <th>Name</th>
+                                <th>Location</th>
+                                <th class="text-end">Qty</th>
+                                <th>Unit</th>
+                                <th>Status</th>
+                                <th>Lot</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in inventory_list %}
+                            <tr{% if item.quantity <= 10 %} class="table-warning"{% endif %}>
+                                <td class="font-monospace fw-semibold">{{ item.sku }}</td>
+                                <td>{{ item.name }}</td>
+                                <td><code>{{ item.location.code }}</code></td>
+                                <td class="text-end">{{ item.quantity|floatformat:2 }}</td>
+                                <td>{{ item.unit }}</td>
+                                <td>
+                                    <span class="badge {% if item.status == 'available' %}text-bg-success{% elif item.status == 'reserved' %}text-bg-warning{% else %}text-bg-info{% endif %}">
+                                        {{ item.get_status_display }}
+                                    </span>
+                                </td>
+                                <td class="text-muted">{{ item.batch_or_lot|default:"—" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="7" class="text-muted p-3">No inventory items.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-white fw-semibold">Pick lists</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Code</th>
+                                <th>Work Order</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pl in pick_lists %}
+                            <tr>
+                                <td class="font-monospace fw-semibold">{{ pl.code }}</td>
+                                <td>{{ pl.work_order.wo_number }}</td>
+                                <td>
+                                    <span class="badge {% if pl.status == 'open' %}text-bg-warning{% elif pl.status == 'picking' %}text-bg-info{% else %}text-bg-success{% endif %}">
+                                        {{ pl.get_status_display }}
+                                    </span>
+                                </td>
+                                <td class="text-muted">{{ pl.created_at|date:"M d, Y" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-muted p-3">No pick lists.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-semibold">Storage locations</div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for loc in locations %}
+                    <li class="list-group-item small d-flex justify-content-between align-items-center">
+                        <div>
+                            <code class="fw-semibold">{{ loc.code }}</code>
+                            {% if loc.name %}<span class="text-muted ms-1">{{ loc.name }}</span>{% endif %}
+                        </div>
+                        <span class="badge text-bg-secondary rounded-pill">{{ loc.item_count }} items</span>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item small text-muted">No locations defined.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        {% if low_stock %}
+        <div class="card shadow-sm border-danger mb-4">
+            <div class="card-header bg-danger text-white fw-semibold">Low stock alerts</div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for item in low_stock %}
+                    <li class="list-group-item small d-flex justify-content-between">
+                        <span class="fw-semibold">{{ item.sku }}</span>
+                        <span class="text-danger fw-bold">{{ item.quantity|floatformat:2 }} {{ item.unit }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 text-uppercase text-muted fw-semibold mb-3">Warehouse API</h2>
+                <ul class="small text-muted mb-0">
+                    <li><code>GET/POST /api/v1/warehouse-locations/</code></li>
+                    <li><code>GET/POST /api/v1/inventory-items/</code></li>
+                    <li><code>POST /api/v1/inventory-items/{id}/adjust/</code></li>
+                    <li><code>GET/POST /api/v1/pick-lists/</code></li>
+                    <li><code>GET/POST /api/v1/pick-list-lines/</code></li>
+                    <li><code>GET/POST /api/v1/stock-movements/</code></li>
+                </ul>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
