@@ -1,0 +1,62 @@
+from django.db import models
+from django.contrib.auth.models import User
+
+class Client(models.Model):
+    name = models.CharField(max_length=200, blank=True, null=True) 
+    email = models.EmailField(unique=True)
+    company_name = models.CharField(max_length=200)
+
+    def __str__(self):
+        return self.company_name
+
+class Order(models.Model):
+    STAGE_CHOICES = [
+        ('order_received', 'Order Received'),
+        ('raw_materials', 'Raw Materials Preparation'),
+        ('melting', 'Melting & Refining'),
+        ('casting', 'Continuous Casting'),
+        ('rolling', 'Hot/Cold Rolling'),
+        ('finishing', 'Finishing & Inspection'),
+        ('shipping', 'Ready for Shipping'),
+        ('delivered', 'Delivered')
+    ]
+
+    order_id = models.CharField(max_length=50, unique=True)
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='orders')
+    
+    steel_grade = models.CharField(max_length=50)
+    product_form = models.CharField(max_length=50, blank=True, null=True)
+    dimensions = models.CharField(max_length=100)
+    quantity_tons = models.DecimalField(max_digits=10, decimal_places=2)
+    surface_finish = models.CharField(max_length=50, blank=True, null=True)
+    
+    heat_treatment = models.BooleanField(default=False)
+    ultrasonic_test = models.BooleanField(default=False)
+    mill_certificate = models.BooleanField(default=False)
+
+    blueprint_file = models.FileField(upload_to='blueprints/', blank=True, null=True)
+    admin_notes = models.TextField(blank=True, null=True)
+
+    status = models.CharField(max_length=30, choices=STAGE_CHOICES, default='order_received')
+    created_at = models.DateTimeField(auto_now_add=True)
+    target_delivery = models.DateField()
+
+    def __str__(self):
+        return f"{self.order_id} - {self.client.company_name}"
+
+class OrderImage(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='reference_images')
+    image = models.ImageField(upload_to='order_references/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+class OrderModificationRequest(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='modifications')
+    request_text = models.TextField()
+    is_approved = models.BooleanField(default=False, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class ChatMessage(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='chat_logs')
+    sender = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    message = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
