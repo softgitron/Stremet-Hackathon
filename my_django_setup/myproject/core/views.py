@@ -487,7 +487,7 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
 
     queryset = models.WorkOrder.objects.select_related("customer_order", "source_quote")
     serializer_class = serializers.WorkOrderSerializer
-    http_method_names = ["get", "patch", "put", "head", "options"]
+    http_method_names = ["get", "post", "patch", "put", "head", "options"]
     filterset_fields = ("customer_order", "source_quote", "priority")
     ordering_fields = ("created_at", "delivery_deadline", "completion_percent", "wo_number")
     search_fields = ("wo_number",)
