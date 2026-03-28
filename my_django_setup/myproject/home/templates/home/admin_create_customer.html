@@ -1,0 +1,21 @@
+{% extends "home/base_portal.html" %}
+{% block title %}Stremet | New Customer{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-7">
+<h1 class="h3 mb-3" style="color:var(--st-admin)">New customer</h1>
+<div class="card shadow-sm"><div class="card-body p-4">
+<form method="post">{% csrf_token %}
+    <div class="mb-3"><label class="form-label fw-semibold">Company name *</label>
+    <input type="text" name="company_name" class="form-control" required></div>
+    <div class="mb-3"><label class="form-label fw-semibold">Email *</label>
+    <input type="email" name="email" class="form-control" required></div>
+    <div class="mb-3"><label class="form-label fw-semibold">Phone</label>
+    <input type="text" name="phone" class="form-control"></div>
+    <div class="mb-3"><label class="form-label fw-semibold">Billing address</label>
+    <textarea name="billing_address" class="form-control" rows="2"></textarea></div>
+    <div class="d-flex gap-2"><button class="btn btn-primary">Create customer</button>
+    <a href="{% url 'portal_admin' %}" class="btn btn-outline-secondary">Cancel</a></div>
+</form>
+</div></div></div></div>
+{% endblock %}

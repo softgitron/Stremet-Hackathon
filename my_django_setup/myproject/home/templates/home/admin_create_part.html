@@ -1,0 +1,28 @@
+{% extends "home/base_portal.html" %}
+{% block title %}Stremet | New Part{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-7">
+<h1 class="h3 mb-3" style="color:var(--st-admin)">New part</h1>
+<div class="card shadow-sm"><div class="card-body p-4">
+<form method="post">{% csrf_token %}
+    <div class="mb-3"><label class="form-label fw-semibold">Customer *</label>
+    <select name="customer" class="form-select" required>
+        <option value="">— select —</option>
+        {% for c in customers %}<option value="{{ c.id }}">{{ c.company_name }}</option>{% endfor %}
+    </select></div>
+    <div class="mb-3"><label class="form-label fw-semibold">Part name *</label>
+    <input type="text" name="name" class="form-control" required></div>
+    <div class="mb-3"><label class="form-label fw-semibold">Description</label>
+    <textarea name="description" class="form-control" rows="2"></textarea></div>
+    <div class="row g-3 mb-3">
+        <div class="col-md-6"><label class="form-label fw-semibold">Drawing reference</label>
+        <input type="text" name="drawing_reference" class="form-control"></div>
+        <div class="col-md-6"><label class="form-label fw-semibold">Quantity</label>
+        <input type="number" name="quantity" class="form-control" value="1" min="1"></div>
+    </div>
+    <div class="d-flex gap-2"><button class="btn btn-primary">Create part</button>
+    <a href="{% url 'portal_admin' %}" class="btn btn-outline-secondary">Cancel</a></div>
+</form>
+</div></div></div></div>
+{% endblock %}

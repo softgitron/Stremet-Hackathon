@@ -1,0 +1,130 @@
+{% extends "home/base_portal.html" %}
+{% block title %}Stremet | {{ quote.quote_number }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1" style="color:var(--st-sales)">{{ quote.quote_number }}</h1>
+        <p class="text-muted small mb-0">{{ quote.title }} &middot; {{ quote.customer.company_name }} &middot;
+        <span class="badge {% if quote.state == 'approved' %}text-bg-success{% elif quote.state == 'rejected' %}text-bg-danger{% elif quote.state == 'draft' %}text-bg-secondary{% else %}text-bg-info{% endif %}">{{ quote.get_state_display }}</span>
+        &middot; {{ quote.total_price|floatformat:2 }} {{ quote.currency }}</p>
+    </div>
+    <a href="{% url 'portal_sales' %}" class="btn btn-sm btn-outline-secondary">Back to sales</a>
+</div>
+
+<div class="row g-4">
+<div class="col-lg-8">
+
+{# Line items #}
+<div class="card shadow-sm mb-4">
+<div class="card-header bg-white fw-semibold">Line items</div>
+<div class="card-body p-0">
+<table class="table table-sm mb-0 small align-middle">
+<thead class="table-light"><tr><th>Description</th><th class="text-end">Qty</th><th class="text-end">Unit price</th><th class="text-end">Total</th></tr></thead>
+<tbody>
+{% for l in lines %}
+<tr><td>{{ l.description }}</td><td class="text-end">{{ l.quantity|floatformat:2 }}</td><td class="text-end">{{ l.unit_price|floatformat:2 }}</td><td class="text-end">{{ l.line_total|floatformat:2 }}</td></tr>
+{% empty %}<tr><td colspan="4" class="text-muted p-3">No lines yet.</td></tr>{% endfor %}
+</tbody></table>
+</div>
+<div class="card-footer bg-white">
+<form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="action" value="add_line">
+    <div class="col-md-5"><input type="text" name="description" class="form-control form-control-sm" placeholder="Description *" required></div>
+    <div class="col-md-2"><input type="number" name="quantity" class="form-control form-control-sm" value="1" step="0.01"></div>
+    <div class="col-md-2"><input type="number" name="unit_price" class="form-control form-control-sm" value="0" step="0.01"></div>
+    <div class="col-md-3"><button class="btn btn-sm btn-outline-primary w-100">Add line</button></div>
+</form>
+</div>
+</div>
+
+{# Transitions #}
+<div class="card shadow-sm mb-4">
+<div class="card-header bg-white fw-semibold">Workflow</div>
+<div class="card-body">
+{% if allowed_transitions %}
+<form method="post" class="row g-2 align-items-end mb-3">{% csrf_token %}<input type="hidden" name="action" value="transition">
+    <div class="col-md-4"><select name="to_state" class="form-select form-select-sm">
+        {% for s in allowed_transitions %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-5"><input type="text" name="note" class="form-control form-control-sm" placeholder="Note (optional)"></div>
+    <div class="col-md-3"><button class="btn btn-sm btn-warning w-100">Transition</button></div>
+</form>
+{% else %}<p class="text-muted small mb-0">No transitions available from {{ quote.get_state_display }}.</p>{% endif %}
+
+{% if quote.needs_recalculation %}
+<form method="post" class="mt-2">{% csrf_token %}<input type="hidden" name="action" value="recalculate">
+<button class="btn btn-sm btn-outline-success">Recalculate cost</button></form>
+{% endif %}
+
+<h3 class="h6 mt-3 mb-2">Transition history</h3>
+<ul class="list-unstyled small">
+{% for t in transitions %}
+<li class="mb-1"><span class="text-muted">{{ t.transitioned_at|date:"M d H:i" }}</span> {{ t.from_state }} → <strong>{{ t.to_state }}</strong>{% if t.user %} by {{ t.user.username }}{% endif %}{% if t.note %} — {{ t.note }}{% endif %}</li>
+{% empty %}<li class="text-muted">No transitions yet.</li>{% endfor %}
+</ul>
+</div></div>
+
+{# Discussion threads #}
+<div class="card shadow-sm mb-4">
+<div class="card-header bg-white fw-semibold">Discussion</div>
+<div class="card-body">
+{% for t in threads %}
+<div class="border rounded p-2 mb-3">
+<div class="fw-semibold small">{{ t.subject }}{% if t.is_resolved %} <span class="badge text-bg-success">Resolved</span>{% endif %}</div>
+{% for c in thread_comments|dictsort:"0" %}{% if c.0 == t.id %}{% for comment in c.1 %}
+<div class="ms-3 mt-1 small"><strong>{{ comment.author.username|default:"anon" }}</strong> <span class="text-muted">({{ comment.author_role }})</span>: {{ comment.body }}</div>
+{% endfor %}{% endif %}{% endfor %}
+<form method="post" class="mt-2 row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="action" value="add_comment"><input type="hidden" name="thread_id" value="{{ t.id }}">
+    <div class="col-md-5"><input type="text" name="body" class="form-control form-control-sm" placeholder="Reply..." required></div>
+    <div class="col-md-3"><select name="author_role" class="form-select form-select-sm"><option value="sales">Sales</option><option value="customer">Customer</option><option value="designer">Designer</option><option value="internal">Internal</option></select></div>
+    <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100">Reply</button></div>
+</form>
+</div>
+{% empty %}<p class="text-muted small">No threads yet.</p>{% endfor %}
+<form method="post" class="row g-2 align-items-end mt-2">{% csrf_token %}<input type="hidden" name="action" value="new_thread">
+    <div class="col-md-8"><input type="text" name="subject" class="form-control form-control-sm" placeholder="New thread subject..." required></div>
+    <div class="col-md-4"><button class="btn btn-sm btn-outline-secondary w-100">New thread</button></div>
+</form>
+</div></div>
+
+</div>
+
+<div class="col-lg-4">
+
+{# Attachments #}
+<div class="card shadow-sm mb-4">
+<div class="card-header bg-white fw-semibold">Attachments</div>
+<div class="card-body">
+{% for a in attachments %}
+<div class="small mb-2"><a href="{{ a.file.url }}" target="_blank">{{ a.original_name|default:a.file.name }}</a> <span class="text-muted">{{ a.created_at|date:"M d" }}</span></div>
+{% empty %}<p class="text-muted small">No attachments.</p>{% endfor %}
+<form method="post" enctype="multipart/form-data" class="mt-2">{% csrf_token %}<input type="hidden" name="action" value="upload_attachment">
+    <input type="file" name="file" class="form-control form-control-sm mb-2">
+    <button class="btn btn-sm btn-outline-primary w-100">Upload file</button>
+</form>
+</div></div>
+
+{# Design support #}
+<div class="card shadow-sm mb-4">
+<div class="card-header bg-white fw-semibold">Design support</div>
+<div class="card-body">
+<form method="post">{% csrf_token %}<input type="hidden" name="action" value="design_support">
+    <div class="mb-2"><textarea name="ds_description" class="form-control form-control-sm" rows="2" placeholder="Describe what you need..." required></textarea></div>
+    <div class="mb-2"><select name="ds_priority" class="form-select form-select-sm">
+        <option value="normal">Normal</option><option value="low">Low</option><option value="high">High</option><option value="urgent">Urgent</option>
+    </select></div>
+    <button class="btn btn-sm btn-outline-warning w-100">Request design support</button>
+</form>
+</div></div>
+
+{# Info #}
+<div class="card shadow-sm">
+<div class="card-body small text-muted">
+<div><strong>Created:</strong> {{ quote.created_at|date:"M d, Y H:i" }}</div>
+<div><strong>Updated:</strong> {{ quote.updated_at|date:"M d, Y H:i" }}</div>
+{% if quote.preliminary_manufacturing_plan %}<div><strong>Plan:</strong> <a href="{% url 'design_plan_detail' quote.preliminary_manufacturing_plan.id %}">{{ quote.preliminary_manufacturing_plan.name }}</a></div>{% endif %}
+<div><strong>Recalc needed:</strong> {{ quote.needs_recalculation|yesno:"Yes,No" }}</div>
+</div></div>
+
+</div>
+</div>
+{% endblock %}

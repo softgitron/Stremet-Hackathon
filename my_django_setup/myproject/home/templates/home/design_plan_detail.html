@@ -1,0 +1,70 @@
+{% extends "home/base_portal.html" %}
+{% block title %}Stremet | {{ plan.name }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1" style="color:var(--st-design)">{{ plan.name }}</h1>
+        <p class="text-muted small mb-0">{% if plan.part %}Part: {{ plan.part.name }}{% else %}No part linked{% endif %} &middot; Est. {{ plan.estimated_total_time_minutes|floatformat:0 }} min &middot; {{ plan.estimated_total_cost|floatformat:2 }} cost</p>
+    </div>
+    <a href="{% url 'portal_design' %}" class="btn btn-sm btn-outline-secondary">Back to design</a>
+</div>
+
+<div class="row g-4">
+<div class="col-lg-7">
+
+{# Steps #}
+<div class="card shadow-sm mb-4">
+<div class="card-header bg-white fw-semibold">Manufacturing steps</div>
+<div class="card-body p-0">
+<table class="table table-sm mb-0 small align-middle">
+<thead class="table-light"><tr><th>#</th><th>Title</th><th>Machine type</th><th class="text-end">Process (min)</th><th class="text-end">Setup (min)</th></tr></thead>
+<tbody>
+{% for s in steps %}
+<tr><td>{{ s.sequence }}</td><td>{{ s.title }}</td><td><code>{{ s.machine_type }}</code></td><td class="text-end">{{ s.processing_time_minutes|floatformat:0 }}</td><td class="text-end">{{ s.setup_time_minutes|floatformat:0 }}</td></tr>
+{% empty %}<tr><td colspan="5" class="text-muted p-3">No steps yet.</td></tr>{% endfor %}
+</tbody></table>
+</div>
+<div class="card-footer bg-white">
+<form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="action" value="add_step">
+    <div class="col-md-1"><input type="number" name="sequence" class="form-control form-control-sm" value="{{ steps.count|add:1 }}" min="1" title="Seq"></div>
+    <div class="col-md-2"><input type="text" name="machine_type" class="form-control form-control-sm" placeholder="Type *" required></div>
+    <div class="col-md-3"><input type="text" name="title" class="form-control form-control-sm" placeholder="Title"></div>
+    <div class="col-md-2"><input type="number" name="processing_time_minutes" class="form-control form-control-sm" placeholder="Proc min" value="30" step="1"></div>
+    <div class="col-md-2"><input type="number" name="setup_time_minutes" class="form-control form-control-sm" placeholder="Setup min" value="10" step="1"></div>
+    <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100">Add step</button></div>
+</form>
+</div>
+</div>
+
+</div>
+
+<div class="col-lg-5">
+
+{# BOM #}
+<div class="card shadow-sm mb-4">
+<div class="card-header bg-white fw-semibold">Bill of materials</div>
+<div class="card-body p-0">
+<table class="table table-sm mb-0 small align-middle">
+<thead class="table-light"><tr><th>SKU</th><th>Name</th><th class="text-end">Qty</th><th>Unit</th></tr></thead>
+<tbody>
+{% for b in bom %}
+<tr><td class="font-monospace">{{ b.inventory_item.sku }}</td><td>{{ b.inventory_item.name }}</td><td class="text-end">{{ b.quantity|floatformat:2 }}</td><td>{{ b.unit }}</td></tr>
+{% empty %}<tr><td colspan="4" class="text-muted p-3">No BOM entries.</td></tr>{% endfor %}
+</tbody></table>
+</div>
+<div class="card-footer bg-white">
+<form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="action" value="add_bom">
+    <div class="col-md-5"><select name="inventory_item" class="form-select form-select-sm" required>
+        <option value="">— material —</option>
+        {% for i in inventory_items %}<option value="{{ i.id }}">{{ i.sku }} — {{ i.name }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-3"><input type="number" name="quantity" class="form-control form-control-sm" value="1" step="0.01"></div>
+    <div class="col-md-2"><input type="text" name="unit" class="form-control form-control-sm" value="pcs"></div>
+    <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100">Add</button></div>
+</form>
+</div>
+</div>
+
+</div>
+</div>
+{% endblock %}
