@@ -1,0 +1,37 @@
+{% extends "home/base_portal.html" %}
+{% block title %}Stremet | Upload Design{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="mb-4">
+            <h1 class="h3 mb-1" style="color: var(--st-customer);">Upload design</h1>
+            <p class="text-muted mb-0">Submit your design files and we'll prepare a preliminary quote.</p>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <form method="post" action="{% url 'customer_upload_design' %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Title / Part name *</label>
+                        <input type="text" name="title" class="form-control" required placeholder="e.g. Mounting Bracket Rev B" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Description</label>
+                        <textarea name="description" class="form-control" rows="4" placeholder="Material, dimensions, quantity, finish, tolerances, special requirements..."></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Design file (CAD, PDF, DXF, image)</label>
+                        <input type="file" name="design_file" class="form-control" accept=".pdf,.dxf,.dwg,.step,.stp,.iges,.igs,.stl,.png,.jpg,.jpeg">
+                        <div class="form-text">Max 500 MB. Supported: PDF, DXF, DWG, STEP, IGES, STL, PNG, JPG.</div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Submit design</button>
+                        <a href="{% url 'customer_dashboard' %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
