@@ -1,5 +1,8 @@
+import csv
+import io
 from decimal import Decimal
 
+from django.http import HttpResponse
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status, viewsets
@@ -451,6 +454,13 @@ class InventoryItemViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         serializer.save(updated_by=self.request.user)
 
+    @action(detail=False, methods=["get"], url_path="low-stock")
+    def low_stock(self, request):
+        threshold = Decimal(request.query_params.get("threshold", "10"))
+        items = models.InventoryItem.objects.filter(quantity__lte=threshold).order_by("quantity")
+        serializer = serializers.InventoryItemSerializer(items, many=True)
+        return Response({"threshold": str(threshold), "count": items.count(), "items": serializer.data})
+
     @action(detail=True, methods=["post"], url_path="adjust")
     def adjust_stock(self, request, pk=None):
         item = self.get_object()
@@ -503,6 +513,38 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
         wo = self.get_object()
         pl = create_pick_list_from_work_order(wo, request.user)
         return Response(serializers.PickListSerializer(pl).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["get"], url_path="delays")
+    def delays(self, request, pk=None):
+        wo = self.get_object()
+        now = timezone.now()
+        step_delays = []
+        for s in wo.steps.all().order_by("sequence"):
+            delay = None
+            if s.planned_end and s.actual_end:
+                delay = (s.actual_end - s.planned_end).total_seconds() / 3600
+            elif s.planned_end and not s.actual_end and s.status != models.WorkOrderStep.ExecutionStatus.COMPLETED:
+                if now > s.planned_end:
+                    delay = (now - s.planned_end).total_seconds() / 3600
+            step_delays.append({
+                "sequence": s.sequence,
+                "title": s.title,
+                "status": s.status,
+                "planned_end": s.planned_end.isoformat() if s.planned_end else None,
+                "actual_end": s.actual_end.isoformat() if s.actual_end else None,
+                "delay_hours": round(delay, 2) if delay else 0,
+            })
+        order_delay = None
+        if wo.delivery_deadline:
+            if wo.completion_percent < 100 and now.date() > wo.delivery_deadline:
+                order_delay = (now.date() - wo.delivery_deadline).days
+        return Response({
+            "wo_number": wo.wo_number,
+            "completion_percent": str(wo.completion_percent),
+            "delivery_deadline": str(wo.delivery_deadline) if wo.delivery_deadline else None,
+            "order_delay_days": order_delay or 0,
+            "step_delays": step_delays,
+        })
 
 
 class WorkOrderStepViewSet(viewsets.ModelViewSet):
@@ -658,6 +700,27 @@ class AuditLogEntryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.AuditLogEntrySerializer
     filterset_fields = ("entity_type", "action", "user")
     ordering_fields = ("timestamp",)
+
+    @action(detail=False, methods=["get"], url_path="export")
+    def export_csv(self, request):
+        qs = self.filter_queryset(self.get_queryset())
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["timestamp", "user", "action", "entity_type", "entity_id", "before", "after", "metadata"])
+        for entry in qs[:5000]:
+            writer.writerow([
+                entry.timestamp.isoformat(),
+                entry.user.username if entry.user else "",
+                entry.action,
+                entry.entity_type,
+                entry.entity_id,
+                str(entry.before or ""),
+                str(entry.after or ""),
+                str(entry.metadata or ""),
+            ])
+        response = HttpResponse(buf.getvalue(), content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="audit_log.csv"'
+        return response
 
 
 class PermissionGrantViewSet(viewsets.ModelViewSet):

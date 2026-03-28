@@ -6,7 +6,10 @@
         <h1 class="h3 mb-1" style="color: var(--st-customer);">{{ customer.company_name }}</h1>
         <p class="text-muted small mb-0">Quotes, orders, delivery dates, and documents shared with your account.</p>
     </div>
-    <a href="{% url 'customer_panel' %}" class="btn btn-sm btn-outline-secondary">Refresh</a>
+    <div class="d-flex gap-2">
+        <a href="{% url 'customer_upload_design' %}" class="btn btn-sm btn-primary">Upload design</a>
+        <a href="{% url 'customer_panel' %}" class="btn btn-sm btn-outline-secondary">Refresh</a>
+    </div>
 </div>
 
 <div class="row g-4">
