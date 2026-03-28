@@ -3,37 +3,156 @@
 {% block content %}
 <div class="mb-4">
     <h1 class="h3 mb-1" style="color: var(--st-design);">Design &amp; manufacturing engineering</h1>
-    <p class="text-muted mb-0">Plans, steps, BOM, templates, and artifacts — all under <code>/api/v1/</code>.</p>
+    <p class="text-muted mb-0">Manufacturing plans, steps, BOM, reusable blocks, and design support.</p>
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-sm-6">
+    <div class="col-sm-6 col-lg-3">
         <div class="card kpi-card h-100">
             <div class="card-body">
-                <div class="text-muted small text-uppercase">Open / clarification requests</div>
-                <div class="display-6 fw-semibold">{{ design_open }}</div>
+                <div class="text-muted small text-uppercase">Open requests</div>
+                <div class="display-6 fw-semibold text-warning">{{ design_open }}</div>
             </div>
         </div>
     </div>
-    <div class="col-sm-6">
+    <div class="col-sm-6 col-lg-3">
         <div class="card kpi-card h-100">
             <div class="card-body">
-                <div class="text-muted small text-uppercase">Design requests (all time)</div>
+                <div class="text-muted small text-uppercase">All requests</div>
                 <div class="display-6 fw-semibold">{{ design_total }}</div>
             </div>
         </div>
     </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card kpi-card h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Manufacturing plans</div>
+                <div class="display-6 fw-semibold">{{ plans_total }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card kpi-card h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Design blocks</div>
+                <div class="display-6 fw-semibold">{{ blocks_total }}</div>
+            </div>
+        </div>
+    </div>
 </div>
 
-<div class="card shadow-sm">
-    <div class="card-body">
-        <h2 class="h6 text-uppercase text-muted fw-semibold mb-3">API endpoints</h2>
-        <ul class="small text-muted mb-0">
-            <li><code>GET/POST /api/v1/manufacturing-plans/</code>, <code>manufacturing-steps/</code>, <code>bom-nodes/</code></li>
-            <li><code>GET/POST /api/v1/design-blocks/</code>, <code>step-artifacts/</code></li>
-            <li><code>GET/PATCH /api/v1/design-support/</code> — accept / clarify / attach plans</li>
-            <li>Link a plan to a quote via <code>preliminary_manufacturing_plan</code> on <code>quotes</code>.</li>
-        </ul>
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-semibold">Design support requests</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Quote</th>
+                                <th>Description</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Designer</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for dr in design_requests %}
+                            <tr>
+                                <td class="font-monospace">{{ dr.quote.quote_number }}</td>
+                                <td>{{ dr.description|truncatewords:8 }}</td>
+                                <td>
+                                    <span class="badge {% if dr.priority == 'urgent' %}text-bg-danger{% elif dr.priority == 'high' %}text-bg-warning{% else %}text-bg-light{% endif %}">
+                                        {{ dr.get_priority_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge {% if dr.status == 'open' %}text-bg-warning{% elif dr.status == 'accepted' %}text-bg-success{% elif dr.status == 'rejected' %}text-bg-danger{% elif dr.status == 'clarification' %}text-bg-info{% else %}text-bg-secondary{% endif %}">
+                                        {{ dr.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>{% if dr.assigned_designer %}{{ dr.assigned_designer.get_username }}{% else %}<span class="text-muted">Unassigned</span>{% endif %}</td>
+                                <td class="text-muted">{{ dr.created_at|date:"M d" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="6" class="text-muted p-3">No design requests.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-white fw-semibold">Manufacturing plans</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Plan name</th>
+                                <th>Part</th>
+                                <th class="text-end">Est. time (min)</th>
+                                <th class="text-end">Est. cost</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in plans %}
+                            <tr>
+                                <td class="fw-semibold">{{ p.name }}</td>
+                                <td>{% if p.part %}{{ p.part.name }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                                <td class="text-end">{{ p.estimated_total_time_minutes|floatformat:0 }}</td>
+                                <td class="text-end">{{ p.estimated_total_cost|floatformat:2 }}</td>
+                                <td class="text-muted">{{ p.created_at|date:"M d, Y" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-muted p-3">No plans yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-semibold">Reusable design blocks</div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for b in blocks %}
+                    <li class="list-group-item small">
+                        <div class="d-flex justify-content-between">
+                            <span class="fw-semibold">{{ b.name }}</span>
+                            <span class="badge text-bg-light">v{{ b.version_tag }}</span>
+                        </div>
+                        <div class="text-muted">{{ b.description|truncatewords:10 }}</div>
+                        {% if b.default_machine_type %}<span class="badge text-bg-secondary mt-1">{{ b.default_machine_type }}</span>{% endif %}
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item small text-muted">No blocks. Create via API.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 text-uppercase text-muted fw-semibold mb-3">Designer API</h2>
+                <ul class="small text-muted mb-0">
+                    <li><code>GET/POST /api/v1/manufacturing-plans/</code></li>
+                    <li><code>GET/POST /api/v1/manufacturing-steps/</code></li>
+                    <li><code>GET/POST /api/v1/bom-nodes/</code></li>
+                    <li><code>GET/POST /api/v1/design-blocks/</code></li>
+                    <li><code>GET/POST /api/v1/step-artifacts/</code></li>
+                    <li><code>GET/POST /api/v1/step-inputs/</code>, <code>step-outputs/</code></li>
+                    <li><code>POST /api/v1/manufacturing-plans/{id}/estimate-resources/</code></li>
+                </ul>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

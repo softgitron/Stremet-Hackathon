@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
     <div>
         <h1 class="h3 mb-1" style="color: var(--st-sales);">Sales workspace</h1>
-        <p class="text-muted mb-0">Quotes, collaboration, and design support — use the API for day-to-day work.</p>
+        <p class="text-muted mb-0">Quotes, customer interactions, design requests, and revenue tracking.</p>
     </div>
 </div>
 
@@ -25,36 +25,137 @@
             </div>
         </div>
     </div>
-</div>
-
-<div class="card shadow-sm">
-    <div class="card-header bg-white fw-semibold">Quotes by state</div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-sm mb-0">
-                <thead class="table-light"><tr><th>State</th><th class="text-end">Count</th></tr></thead>
-                <tbody>
-                    {% for row in quote_by_state %}
-                    <tr>
-                        <td><code>{{ row.state }}</code></td>
-                        <td class="text-end">{{ row.n }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="2" class="text-muted p-3">No quotes yet.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card kpi-card h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Needs recalculation</div>
+                <div class="display-6 fw-semibold text-warning">{{ quotes_needing_recalc }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card kpi-card h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Approved revenue</div>
+                <div class="display-6 fw-semibold text-success">{{ total_revenue|floatformat:2 }}&nbsp;EUR</div>
+            </div>
         </div>
     </div>
 </div>
 
-<div class="mt-4">
-    <h2 class="h6 text-uppercase text-muted fw-semibold">Primary API resources</h2>
-    <ul class="small text-muted mb-0">
-        <li><code>GET/POST /api/v1/quotes/</code> — quotations</li>
-        <li><code>POST /api/v1/quotes/{id}/transition/</code> — workflow</li>
-        <li><code>GET/POST /api/v1/quote-threads/</code>, <code>quote-comments/</code>, <code>quote-attachments/</code></li>
-        <li><code>GET/POST /api/v1/design-support/</code> — design support requests</li>
-    </ul>
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">Recent quotes</span>
+                <span class="badge text-bg-secondary">{{ quote_total }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Number</th>
+                                <th>Customer</th>
+                                <th>State</th>
+                                <th>Title</th>
+                                <th class="text-end">Total</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for q in quotes_recent %}
+                            <tr>
+                                <td class="font-monospace fw-semibold">{{ q.quote_number }}</td>
+                                <td>{{ q.customer.company_name }}</td>
+                                <td>
+                                    {% if q.state == "draft" %}<span class="badge text-bg-secondary">Draft</span>
+                                    {% elif q.state == "in_review" %}<span class="badge text-bg-info">In Review</span>
+                                    {% elif q.state == "customer_review" %}<span class="badge text-bg-primary">Customer Review</span>
+                                    {% elif q.state == "approved" %}<span class="badge text-bg-success">Approved</span>
+                                    {% elif q.state == "rejected" %}<span class="badge text-bg-danger">Rejected</span>
+                                    {% elif q.state == "expired" %}<span class="badge text-bg-dark">Expired</span>
+                                    {% else %}<span class="badge text-bg-secondary">{{ q.state }}</span>{% endif %}
+                                </td>
+                                <td>{{ q.title|truncatewords:6 }}</td>
+                                <td class="text-end">{{ q.total_price|floatformat:2 }} {{ q.currency }}</td>
+                                <td class="text-muted">{{ q.created_at|date:"M d, Y" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="6" class="text-muted p-3">No quotes yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-semibold">Quotes by state</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light"><tr><th>State</th><th class="text-end">Count</th></tr></thead>
+                        <tbody>
+                            {% for row in quote_by_state %}
+                            <tr>
+                                <td><code>{{ row.state }}</code></td>
+                                <td class="text-end">{{ row.n }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="2" class="text-muted p-3">No quotes yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-white fw-semibold">Design support requests</div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for dr in design_requests %}
+                    <li class="list-group-item small">
+                        <div class="fw-semibold">{{ dr.quote.quote_number }}</div>
+                        <div class="text-muted">{{ dr.description|truncatewords:12 }}</div>
+                        <div class="d-flex justify-content-between mt-1">
+                            <span class="badge {% if dr.status == 'open' %}text-bg-warning{% elif dr.status == 'accepted' %}text-bg-success{% elif dr.status == 'rejected' %}text-bg-danger{% elif dr.status == 'clarification' %}text-bg-info{% else %}text-bg-secondary{% endif %}">{{ dr.get_status_display }}</span>
+                            <span class="badge text-bg-light">{{ dr.get_priority_display }}</span>
+                        </div>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item small text-muted">No design requests.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4 shadow-sm">
+    <div class="card-body">
+        <h2 class="h6 text-uppercase text-muted fw-semibold mb-3">Sales API endpoints</h2>
+        <div class="row g-3 small text-muted">
+            <div class="col-md-6">
+                <ul class="mb-0">
+                    <li><code>GET/POST /api/v1/quotes/</code> — quotations CRUD</li>
+                    <li><code>POST /api/v1/quotes/{id}/transition/</code> — workflow transitions</li>
+                    <li><code>POST /api/v1/quotes/{id}/recalculate/</code> — cost engine</li>
+                    <li><code>POST /api/v1/quotes/{id}/generate-work-order/</code></li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <ul class="mb-0">
+                    <li><code>GET/POST /api/v1/quote-threads/</code>, <code>quote-comments/</code></li>
+                    <li><code>GET/POST /api/v1/quote-attachments/</code></li>
+                    <li><code>GET/POST /api/v1/design-support/</code></li>
+                    <li><code>GET /api/v1/quote-versions/</code>, <code>quote-costs/</code></li>
+                </ul>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

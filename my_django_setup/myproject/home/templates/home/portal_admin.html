@@ -3,10 +3,10 @@
 {% block content %}
 <div class="mb-4">
     <h1 class="h3 mb-1" style="color: var(--st-admin);">Operations overview</h1>
-    <p class="text-muted mb-0">High-level counts; configure users, roles, and permissions in Django admin or via API.</p>
+    <p class="text-muted mb-0">System-wide KPIs, machine utilization, delays, and audit trail.</p>
 </div>
 
-<div class="row g-3">
+<div class="row g-3 mb-4">
     <div class="col-6 col-md-4 col-lg-2">
         <div class="card kpi-card h-100 text-center">
             <div class="card-body py-3">
@@ -42,18 +42,143 @@
     <div class="col-6 col-md-4 col-lg-2">
         <div class="card kpi-card h-100 text-center">
             <div class="card-body py-3">
-                <div class="small text-muted">Inventory items</div>
+                <div class="small text-muted">Inventory</div>
                 <div class="h2 mb-0">{{ inventory_items }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="card kpi-card h-100 text-center">
+            <div class="card-body py-3">
+                <div class="small text-muted">Users</div>
+                <div class="h2 mb-0">{{ users }}</div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="card mt-4 shadow-sm">
-    <div class="card-body">
-        <h2 class="h6 text-uppercase text-muted fw-semibold mb-2">Administration</h2>
-        <p class="small text-muted mb-2">User profiles and roles: <code>/api/v1/user-profiles/</code>. Permission matrix: <code>/api/v1/permissions/</code>. Audit log: <code>/api/v1/audit-log/</code>.</p>
-        <a href="/admin/" class="btn btn-primary btn-sm">Django admin</a>
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="row g-3 mb-4">
+            <div class="col-sm-4">
+                <div class="card kpi-card text-center border-success">
+                    <div class="card-body py-3">
+                        <div class="small text-muted">Avg completion %</div>
+                        <div class="h3 mb-0 text-success">{{ avg_completion|floatformat:1 }}%</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-4">
+                <div class="card kpi-card text-center border-warning">
+                    <div class="card-body py-3">
+                        <div class="small text-muted">Overdue orders</div>
+                        <div class="h3 mb-0 text-warning">{{ overdue_orders }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-4">
+                <div class="card kpi-card text-center border-danger">
+                    <div class="card-body py-3">
+                        <div class="small text-muted">Blocked steps</div>
+                        <div class="h3 mb-0 text-danger">{{ blocked_steps }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-semibold">Machine fleet</div>
+            <div class="card-body">
+                <div class="row g-3 text-center">
+                    <div class="col-3">
+                        <div class="h4 text-success mb-0">{{ machines_available }}</div>
+                        <div class="small text-muted">Available</div>
+                    </div>
+                    <div class="col-3">
+                        <div class="h4 text-primary mb-0">{{ machines_busy }}</div>
+                        <div class="small text-muted">Busy</div>
+                    </div>
+                    <div class="col-3">
+                        <div class="h4 text-warning mb-0">{{ machines_maintenance }}</div>
+                        <div class="small text-muted">Maintenance</div>
+                    </div>
+                    <div class="col-3">
+                        <div class="h4 text-secondary mb-0">{{ machines_offline }}</div>
+                        <div class="small text-muted">Offline</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-semibold">Revenue (approved quotes)</div>
+            <div class="card-body text-center">
+                <div class="display-5 fw-bold text-success">{{ approved_revenue|floatformat:2 }} EUR</div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-white fw-semibold">Recent audit log</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Time</th>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Entity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in recent_audit %}
+                            <tr>
+                                <td class="text-muted">{{ entry.timestamp|date:"M d H:i" }}</td>
+                                <td>{% if entry.user %}{{ entry.user.username }}{% else %}<span class="text-muted">system</span>{% endif %}</td>
+                                <td><code>{{ entry.action }}</code></td>
+                                <td>{{ entry.entity_type }}:{{ entry.entity_id|truncatechars:12 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-muted p-3">No audit entries.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-semibold">Recent notifications</div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for n in recent_notifications %}
+                    <li class="list-group-item small{% if not n.read %} bg-light{% endif %}">
+                        <div class="fw-semibold">{{ n.title }}</div>
+                        <div class="text-muted">{{ n.body|truncatewords:12 }}</div>
+                        <div class="d-flex justify-content-between mt-1">
+                            <span class="badge text-bg-light">{{ n.event_code }}</span>
+                            <span class="text-muted" style="font-size:.7rem">{{ n.created_at|date:"M d H:i" }}</span>
+                        </div>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item small text-muted">No notifications.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 text-uppercase text-muted fw-semibold mb-2">Administration</h2>
+                <p class="small text-muted mb-2">User profiles and roles: <code>/api/v1/user-profiles/</code>. Permission matrix: <code>/api/v1/permissions/</code>. Audit log: <code>/api/v1/audit-log/</code>. Notifications: <code>/api/v1/notifications/</code>.</p>
+                <div class="d-flex gap-2">
+                    <a href="/admin/" class="btn btn-primary btn-sm">Django admin</a>
+                    <a href="/api/v1/docs/" class="btn btn-outline-secondary btn-sm" target="_blank">API docs</a>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

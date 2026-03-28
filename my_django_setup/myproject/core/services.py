@@ -8,18 +8,27 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import (
+    AuditLogEntry,
     CustomerOrder,
+    InAppNotification,
+    InventoryItem,
+    Machine,
+    ManufacturingPlan,
+    PickList,
+    PickListLine,
     Quote,
     QuoteCostBreakdown,
     QuoteStateTransition,
     QuoteVersion,
+    ResourceEstimate,
+    ScheduledStep,
+    StockMovement,
     WorkOrder,
     WorkOrderStep,
 )
 
 
 def build_quote_snapshot(quote: Quote) -> dict[str, Any]:
-    """Serialize quote state for versioning and work-order snapshots."""
     lines = [
         {
             "description": line.description,
@@ -83,7 +92,6 @@ def build_quote_snapshot(quote: Quote) -> dict[str, Any]:
 
 
 def save_quote_version(quote: Quote, user) -> QuoteVersion:
-    """Create next version snapshot for diff/compare."""
     last = quote.versions.order_by("-version_number").first()
     next_num = (last.version_number + 1) if last else 1
     snap = build_quote_snapshot(quote)
@@ -120,7 +128,6 @@ def transition_quote(
     user,
     note: str = "",
 ) -> Quote:
-    """Apply a valid state transition and log it."""
     if to_state == quote.state:
         return quote
     allowed = ALLOWED_TRANSITIONS.get(quote.state, set())
@@ -140,16 +147,28 @@ def transition_quote(
         updated_by=user,
     )
     save_quote_version(quote, user)
+    log_audit(
+        user=user,
+        action="quote_transition",
+        entity_type="Quote",
+        entity_id=str(quote.id),
+        before={"state": old},
+        after={"state": to_state},
+        metadata={"note": note},
+    )
+    _send_notification(
+        user=user,
+        title=f"Quote {quote.quote_number} moved to {quote.get_state_display()}",
+        body=note,
+        event_code="quote_transition",
+        payload={"quote_id": str(quote.id), "state": to_state},
+    )
     if to_state == Quote.QuoteState.APPROVED:
         create_work_order_from_quote(quote, user)
     return quote
 
 
 def compute_quote_cost(quote: Quote, user, overhead_rate: Decimal | None = None) -> QuoteCostBreakdown:
-    """
-    Reproducible cost: material from BOM lines * inventory unit cost,
-    machine time from steps * default rate, labor + overhead from inputs.
-    """
     overhead_rate = overhead_rate or Decimal("0.15")
     material = Decimal("0")
     inputs_detail: dict[str, Any] = {"lines": []}
@@ -170,7 +189,7 @@ def compute_quote_cost(quote: Quote, user, overhead_rate: Decimal | None = None)
     if quote.preliminary_manufacturing_plan_id:
         for step in quote.preliminary_manufacturing_plan.steps.all():
             machine_minutes += step.processing_time_minutes + step.setup_time_minutes
-    machine_rate = Decimal("2.50")  # EUR/min placeholder — configurable
+    machine_rate = Decimal("2.50")
     machine_cost = machine_minutes * machine_rate
     labor_hours = machine_minutes / Decimal("60")
     labor_rate = Decimal("45.00")
@@ -216,7 +235,6 @@ def compute_quote_cost(quote: Quote, user, overhead_rate: Decimal | None = None)
 
 
 def create_work_order_from_quote(quote: Quote, user) -> WorkOrder | None:
-    """Idempotent: one work order per approved quote."""
     if quote.state != Quote.QuoteState.APPROVED:
         return None
     existing = WorkOrder.objects.filter(source_quote=quote).first()
@@ -269,6 +287,20 @@ def create_work_order_from_quote(quote: Quote, user) -> WorkOrder | None:
             updated_by=user,
         )
     _update_work_order_completion(wo)
+    log_audit(
+        user=user,
+        action="work_order_created",
+        entity_type="WorkOrder",
+        entity_id=str(wo.id),
+        after={"wo_number": wo.wo_number, "quote": str(quote.id)},
+    )
+    _send_notification(
+        user=user,
+        title=f"Work Order {wo.wo_number} created",
+        body=f"From quote {quote.quote_number}",
+        event_code="work_order_created",
+        payload={"work_order_id": str(wo.id)},
+    )
     return wo
 
 
@@ -286,7 +318,6 @@ def _update_work_order_completion(wo: WorkOrder) -> None:
 
 
 def mark_design_change_for_quote(plan_id: uuid.UUID | None) -> None:
-    """When manufacturing design changes, flag related quotes for recalculation."""
     if not plan_id:
         return
     qs = Quote.objects.filter(preliminary_manufacturing_plan_id=plan_id)
@@ -304,10 +335,8 @@ def log_audit(
     after: dict | None = None,
     metadata: dict | None = None,
 ):
-    from .models import AuditLogEntry
-
     AuditLogEntry.objects.create(
-        user=user,
+        user=user if user and hasattr(user, "pk") else None,
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,
@@ -315,3 +344,153 @@ def log_audit(
         after=after,
         metadata=metadata or {},
     )
+
+
+def _send_notification(
+    *,
+    user,
+    title: str,
+    body: str = "",
+    event_code: str = "",
+    payload: dict | None = None,
+):
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    from .models import UserProfile
+
+    profiles = UserProfile.objects.filter(
+        role__in=["administrator", "sales", "manufacturer"]
+    ).select_related("user")
+    recipients = {p.user for p in profiles if p.user_id}
+    if user and hasattr(user, "pk"):
+        recipients.add(user)
+    for r in recipients:
+        InAppNotification.objects.create(
+            recipient=r,
+            title=title,
+            body=body,
+            event_code=event_code,
+            payload=payload or {},
+            created_by=user if hasattr(user, "pk") else None,
+            updated_by=user if hasattr(user, "pk") else None,
+        )
+
+
+def compute_resource_estimate(plan: ManufacturingPlan, user) -> ResourceEstimate:
+    machine_hours = Decimal("0")
+    for step in plan.steps.all():
+        machine_hours += (step.processing_time_minutes + step.setup_time_minutes) / Decimal("60")
+    labor_hours = machine_hours * Decimal("1.2")
+    material_reqs = []
+    for node in plan.bom_nodes.select_related("inventory_item").all():
+        material_reqs.append({
+            "sku": node.inventory_item.sku,
+            "name": node.inventory_item.name,
+            "quantity_required": str(node.quantity),
+            "unit": node.unit,
+            "available": str(node.inventory_item.quantity),
+        })
+    est = ResourceEstimate.objects.create(
+        manufacturing_plan=plan,
+        required_machine_hours=machine_hours.quantize(Decimal("0.0001")),
+        required_labor_hours=labor_hours.quantize(Decimal("0.0001")),
+        material_requirements=material_reqs,
+        created_by=user,
+        updated_by=user,
+    )
+    plan.estimated_total_time_minutes = (machine_hours * 60).quantize(Decimal("0.01"))
+    plan.save(update_fields=["estimated_total_time_minutes", "updated_at"])
+    return est
+
+
+def auto_schedule_work_order(wo: WorkOrder, user) -> list[ScheduledStep]:
+    results = []
+    now = timezone.now()
+    cursor = now
+    for step in wo.steps.order_by("sequence"):
+        machine = Machine.objects.filter(
+            machine_type=step.machine_type,
+            state=Machine.MachineState.AVAILABLE,
+        ).first()
+        if not machine:
+            machine = Machine.objects.filter(
+                state=Machine.MachineState.AVAILABLE
+            ).first()
+        if not machine:
+            continue
+        snap_data = wo.snapshot.get("manufacturing_plan") or {}
+        step_data = {}
+        for s in snap_data.get("steps", []):
+            if s.get("id") == step.snapshot_step_key:
+                step_data = s
+                break
+        proc_mins = Decimal(step_data.get("processing_time_minutes", "60"))
+        setup_mins = Decimal(step_data.get("setup_time_minutes", "15"))
+        from datetime import timedelta
+        total_mins = proc_mins + setup_mins
+        end = cursor + timedelta(minutes=float(total_mins))
+        sched = ScheduledStep.objects.create(
+            work_order_step=step,
+            machine=machine,
+            planned_start=cursor,
+            planned_end=end,
+            created_by=user,
+            updated_by=user,
+        )
+        step.machine = machine
+        step.planned_start = cursor
+        step.planned_end = end
+        step.status = WorkOrderStep.ExecutionStatus.READY
+        step.save()
+        results.append(sched)
+        cursor = end
+    return results
+
+
+def reserve_materials_for_step(step: WorkOrderStep, user) -> None:
+    snap = step.work_order.snapshot
+    for bom_entry in snap.get("bom", []):
+        item = InventoryItem.objects.filter(sku=bom_entry.get("inventory_sku")).first()
+        if not item:
+            continue
+        qty = Decimal(bom_entry.get("quantity", "0"))
+        per_step = qty / max(step.work_order.steps.count(), 1)
+        if item.quantity >= per_step:
+            item.quantity -= per_step
+            item.status = InventoryItem.InventoryStatus.RESERVED
+            item.save()
+            StockMovement.objects.create(
+                inventory_item=item,
+                movement_type=StockMovement.MovementType.OUTBOUND,
+                quantity_delta=-per_step,
+                reference=f"WO:{step.work_order.wo_number} Step:{step.sequence}",
+                performed_by=user,
+                created_by=user,
+                updated_by=user,
+            )
+
+
+def create_pick_list_from_work_order(wo: WorkOrder, user) -> PickList:
+    existing = PickList.objects.filter(work_order=wo).first()
+    if existing:
+        return existing
+    code = f"PL-{wo.wo_number}"
+    pl = PickList.objects.create(
+        code=code,
+        work_order=wo,
+        status=PickList.PickStatus.OPEN,
+        created_by=user,
+        updated_by=user,
+    )
+    for bom_entry in wo.snapshot.get("bom", []):
+        item = InventoryItem.objects.filter(sku=bom_entry.get("inventory_sku")).first()
+        if item:
+            PickListLine.objects.create(
+                pick_list=pl,
+                inventory_item=item,
+                quantity=Decimal(bom_entry.get("quantity", "0")),
+                created_by=user,
+                updated_by=user,
+            )
+    return pl

@@ -1,40 +1,134 @@
 {% extends "home/base_portal.html" %}
 {% block title %}Stremet | Manufacturing{% endblock %}
 {% block content %}
-<div class="mb-4">
-    <h1 class="h3 mb-1" style="color: var(--st-mfg);">Production — work orders</h1>
-    <p class="text-muted small mb-0">Shop-floor list; update steps via <code class="api-chip">PATCH /api/v1/work-order-steps/{id}/</code>.</p>
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1" style="color: var(--st-mfg);">Production — shop floor</h1>
+        <p class="text-muted small mb-0">Work orders, step execution, machines, and quality.</p>
+    </div>
 </div>
 
-<div class="card shadow-sm">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0 align-middle small">
-                <thead class="table-light">
-                    <tr>
-                        <th>WO</th>
-                        <th>Order</th>
-                        <th>Quote</th>
-                        <th>Deadline</th>
-                        <th class="text-end">Progress</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for wo in work_orders %}
-                    <tr>
-                        <td class="fw-semibold font-monospace">{{ wo.wo_number }}</td>
-                        <td>{{ wo.customer_order.order_number }}</td>
-                        <td>{{ wo.source_quote.quote_number }}</td>
-                        <td>{{ wo.delivery_deadline|default:"—" }}</td>
-                        <td class="text-end"><span class="badge bg-dark">{{ wo.completion_percent }}%</span></td>
-                    </tr>
+<div class="row g-3 mb-4">
+    <div class="col-sm-4">
+        <div class="card kpi-card h-100 text-center">
+            <div class="card-body py-3">
+                <div class="small text-muted">Work orders</div>
+                <div class="h2 mb-0">{{ total_wo }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="card kpi-card h-100 text-center">
+            <div class="card-body py-3">
+                <div class="small text-muted">In progress steps</div>
+                <div class="h2 mb-0 text-primary">{{ in_progress_count }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="card kpi-card h-100 text-center">
+            <div class="card-body py-3">
+                <div class="small text-muted">Blocked steps</div>
+                <div class="h2 mb-0 text-danger">{{ blocked_count }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white fw-semibold">Active work orders</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>WO</th>
+                                <th>Order</th>
+                                <th>Quote</th>
+                                <th>Priority</th>
+                                <th>Deadline</th>
+                                <th>Steps</th>
+                                <th class="text-end">Progress</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for wo in work_orders %}
+                            <tr>
+                                <td class="fw-semibold font-monospace">{{ wo.wo_number }}</td>
+                                <td>{{ wo.customer_order.order_number }}</td>
+                                <td>{{ wo.source_quote.quote_number }}</td>
+                                <td>
+                                    {% if wo.priority >= 5 %}<span class="badge text-bg-danger">High</span>
+                                    {% elif wo.priority >= 3 %}<span class="badge text-bg-warning">Normal</span>
+                                    {% else %}<span class="badge text-bg-secondary">Low</span>{% endif %}
+                                </td>
+                                <td>{{ wo.delivery_deadline|default:"—" }}</td>
+                                <td>
+                                    <span class="text-success">{{ wo.completed_steps }}</span>/{{ wo.total_steps }}
+                                    {% if wo.blocked_steps %}<span class="text-danger ms-1">({{ wo.blocked_steps }} blocked)</span>{% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <div class="progress" style="min-width:60px;height:18px">
+                                        <div class="progress-bar {% if wo.completion_percent >= 100 %}bg-success{% elif wo.completion_percent >= 50 %}bg-primary{% else %}bg-warning{% endif %}"
+                                             role="progressbar" style="width:{{ wo.completion_percent }}%">
+                                            {{ wo.completion_percent|floatformat:0 }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-end">
+                                    <a href="{% url 'manufacturer_wo_detail' wo.id %}" class="btn btn-sm btn-outline-primary">Steps</a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-muted p-4">No work orders. Approve a quote to generate one.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-semibold">Machines</div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for m in machines %}
+                    <li class="list-group-item small d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fw-semibold">{{ m.identifier }}</span>
+                            <span class="text-muted ms-1">{{ m.name }}</span>
+                        </div>
+                        <span class="badge {% if m.state == 'available' %}text-bg-success{% elif m.state == 'busy' %}text-bg-primary{% elif m.state == 'maintenance' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">
+                            {{ m.get_state_display }}
+                        </span>
+                    </li>
                     {% empty %}
-                    <tr>
-                        <td colspan="5" class="text-muted p-4">No work orders. Approve a quote through the API to generate one.</td>
-                    </tr>
+                    <li class="list-group-item small text-muted">No machines registered.</li>
                     {% endfor %}
-                </tbody>
-            </table>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 text-uppercase text-muted fw-semibold mb-3">Manufacturing API</h2>
+                <ul class="small text-muted mb-0">
+                    <li><code>GET /api/v1/work-orders/</code></li>
+                    <li><code>POST /api/v1/work-order-steps/{id}/start/</code></li>
+                    <li><code>POST /api/v1/work-order-steps/{id}/complete/</code></li>
+                    <li><code>POST /api/v1/work-order-steps/{id}/block/</code></li>
+                    <li><code>POST /api/v1/work-orders/{id}/auto-schedule/</code></li>
+                    <li><code>GET/POST /api/v1/quality-reports/</code></li>
+                    <li><code>POST /api/v1/machines/{id}/set-state/</code></li>
+                </ul>
+            </div>
         </div>
     </div>
 </div>

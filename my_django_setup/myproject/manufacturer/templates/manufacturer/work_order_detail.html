@@ -1,0 +1,146 @@
+{% extends "home/base_portal.html" %}
+{% block title %}Stremet | {{ wo.wo_number }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1" style="color: var(--st-mfg);">{{ wo.wo_number }}</h1>
+        <p class="text-muted small mb-0">
+            Order: <strong>{{ wo.customer_order.order_number }}</strong>
+            &middot; Quote: <strong>{{ wo.source_quote.quote_number }}</strong>
+            &middot; Deadline: <strong>{{ wo.delivery_deadline|default:"not set" }}</strong>
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'manufacturer_panel' %}" class="btn btn-sm btn-outline-secondary">Back to list</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-4">
+        <div class="card kpi-card text-center">
+            <div class="card-body py-3">
+                <div class="small text-muted">Completion</div>
+                <div class="h2 mb-0">{{ wo.completion_percent|floatformat:1 }}%</div>
+                <div class="progress mt-2" style="height:8px">
+                    <div class="progress-bar {% if wo.completion_percent >= 100 %}bg-success{% else %}bg-primary{% endif %}" style="width:{{ wo.completion_percent }}%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="card kpi-card text-center">
+            <div class="card-body py-3">
+                <div class="small text-muted">Priority</div>
+                <div class="h2 mb-0">{{ wo.get_priority_display }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="card kpi-card text-center">
+            <div class="card-body py-3">
+                <div class="small text-muted">Total steps</div>
+                <div class="h2 mb-0">{{ steps|length }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold">Manufacturing steps</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Title</th>
+                        <th>Machine type</th>
+                        <th>Machine</th>
+                        <th>Status</th>
+                        <th>Planned start</th>
+                        <th>Planned end</th>
+                        <th>Actual start</th>
+                        <th>Actual end</th>
+                        <th>Issues</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in steps %}
+                    <tr>
+                        <td class="fw-semibold">{{ s.sequence }}</td>
+                        <td>{{ s.title }}</td>
+                        <td><code>{{ s.machine_type }}</code></td>
+                        <td>{% if s.machine %}{{ s.machine.identifier }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                        <td>
+                            {% if s.status == "pending" %}<span class="badge text-bg-secondary">Pending</span>
+                            {% elif s.status == "ready" %}<span class="badge text-bg-info">Ready</span>
+                            {% elif s.status == "in_progress" %}<span class="badge text-bg-primary">In Progress</span>
+                            {% elif s.status == "completed" %}<span class="badge text-bg-success">Completed</span>
+                            {% elif s.status == "blocked" %}<span class="badge text-bg-danger">Blocked</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ s.planned_start|date:"M d H:i"|default:"—" }}</td>
+                        <td>{{ s.planned_end|date:"M d H:i"|default:"—" }}</td>
+                        <td>{{ s.actual_start|date:"M d H:i"|default:"—" }}</td>
+                        <td>{{ s.actual_end|date:"M d H:i"|default:"—" }}</td>
+                        <td>{{ s.issue_log|truncatewords:8|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="10" class="text-muted p-3">No steps.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% if qc_reports %}
+<div class="card shadow-sm">
+    <div class="card-header bg-white fw-semibold">Quality reports</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>Step</th>
+                        <th>Result</th>
+                        <th>Operator</th>
+                        <th>Material batch</th>
+                        <th>Notes</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for qr in qc_reports %}
+                    <tr>
+                        <td>Step {{ qr.work_order_step.sequence }}</td>
+                        <td>
+                            {% if qr.result == "pass" %}<span class="badge text-bg-success">Pass</span>
+                            {% elif qr.result == "fail" %}<span class="badge text-bg-danger">Fail</span>
+                            {% else %}<span class="badge text-bg-warning">Pending</span>{% endif %}
+                        </td>
+                        <td>{% if qr.operator %}{{ qr.operator.username }}{% else %}—{% endif %}</td>
+                        <td>{{ qr.material_batch|default:"—" }}</td>
+                        <td>{{ qr.inspection_notes|truncatewords:10|default:"—" }}</td>
+                        <td class="text-muted">{{ qr.created_at|date:"M d H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="card mt-4 shadow-sm">
+    <div class="card-body">
+        <h2 class="h6 text-uppercase text-muted fw-semibold mb-2">Step execution API</h2>
+        <ul class="small text-muted mb-0">
+            <li><code>POST /api/v1/work-order-steps/{id}/start/</code> — start a step</li>
+            <li><code>POST /api/v1/work-order-steps/{id}/complete/</code> — mark complete</li>
+            <li><code>POST /api/v1/work-order-steps/{id}/block/</code> — flag blocked with issue</li>
+            <li><code>POST /api/v1/quality-reports/</code> — add QC result</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
