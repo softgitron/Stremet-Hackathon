@@ -11,6 +11,10 @@
         </p>
     </div>
     <div class="d-flex gap-2">
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="auto_schedule">
+        <button class="btn btn-sm btn-outline-info">Auto-schedule</button></form>
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="generate_picklist">
+        <button class="btn btn-sm btn-outline-success">Generate pick list</button></form>
         <a href="{% url 'manufacturer_panel' %}" class="btn btn-sm btn-outline-secondary">Back to list</a>
     </div>
 </div>
@@ -28,20 +32,16 @@
         </div>
     </div>
     <div class="col-sm-4">
-        <div class="card kpi-card text-center">
-            <div class="card-body py-3">
-                <div class="small text-muted">Priority</div>
-                <div class="h2 mb-0">{{ wo.get_priority_display }}</div>
-            </div>
-        </div>
+        <div class="card kpi-card text-center"><div class="card-body py-3">
+            <div class="small text-muted">Priority</div>
+            <div class="h2 mb-0">{{ wo.get_priority_display }}</div>
+        </div></div>
     </div>
     <div class="col-sm-4">
-        <div class="card kpi-card text-center">
-            <div class="card-body py-3">
-                <div class="small text-muted">Total steps</div>
-                <div class="h2 mb-0">{{ steps|length }}</div>
-            </div>
-        </div>
+        <div class="card kpi-card text-center"><div class="card-body py-3">
+            <div class="small text-muted">Total steps</div>
+            <div class="h2 mb-0">{{ steps|length }}</div>
+        </div></div>
     </div>
 </div>
 
@@ -52,16 +52,8 @@
             <table class="table table-hover mb-0 align-middle small">
                 <thead class="table-light">
                     <tr>
-                        <th>#</th>
-                        <th>Title</th>
-                        <th>Machine type</th>
-                        <th>Machine</th>
-                        <th>Status</th>
-                        <th>Planned start</th>
-                        <th>Planned end</th>
-                        <th>Actual start</th>
-                        <th>Actual end</th>
-                        <th>Issues</th>
+                        <th>#</th><th>Title</th><th>Machine type</th><th>Machine</th>
+                        <th>Status</th><th>Planned</th><th>Actual</th><th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -70,77 +62,138 @@
                         <td class="fw-semibold">{{ s.sequence }}</td>
                         <td>{{ s.title }}</td>
                         <td><code>{{ s.machine_type }}</code></td>
-                        <td>{% if s.machine %}{{ s.machine.identifier }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                        <td>{% if s.machine %}{{ s.machine.identifier }}{% else %}—{% endif %}</td>
                         <td>
                             {% if s.status == "pending" %}<span class="badge text-bg-secondary">Pending</span>
                             {% elif s.status == "ready" %}<span class="badge text-bg-info">Ready</span>
                             {% elif s.status == "in_progress" %}<span class="badge text-bg-primary">In Progress</span>
                             {% elif s.status == "completed" %}<span class="badge text-bg-success">Completed</span>
-                            {% elif s.status == "blocked" %}<span class="badge text-bg-danger">Blocked</span>
-                            {% endif %}
+                            {% elif s.status == "blocked" %}<span class="badge text-bg-danger">Blocked</span>{% endif %}
                         </td>
-                        <td>{{ s.planned_start|date:"M d H:i"|default:"—" }}</td>
-                        <td>{{ s.planned_end|date:"M d H:i"|default:"—" }}</td>
-                        <td>{{ s.actual_start|date:"M d H:i"|default:"—" }}</td>
-                        <td>{{ s.actual_end|date:"M d H:i"|default:"—" }}</td>
-                        <td>{{ s.issue_log|truncatewords:8|default:"—" }}</td>
+                        <td class="text-muted">{{ s.planned_start|date:"M d H:i"|default:"—" }}</td>
+                        <td class="text-muted">{{ s.actual_start|date:"M d H:i"|default:"—" }}{% if s.actual_end %} → {{ s.actual_end|date:"H:i" }}{% endif %}</td>
+                        <td>
+                            <div class="d-flex gap-1 flex-wrap">
+                            {% if s.status == "pending" or s.status == "ready" %}
+                                <form method="post" class="d-inline">{% csrf_token %}
+                                <input type="hidden" name="action" value="start_step">
+                                <input type="hidden" name="step_id" value="{{ s.id }}">
+                                <button class="btn btn-sm btn-success">Start</button></form>
+                            {% endif %}
+                            {% if s.status == "in_progress" %}
+                                <form method="post" class="d-inline">{% csrf_token %}
+                                <input type="hidden" name="action" value="complete_step">
+                                <input type="hidden" name="step_id" value="{{ s.id }}">
+                                <button class="btn btn-sm btn-primary">Complete</button></form>
+                            {% endif %}
+                            {% if s.status != "completed" and s.status != "blocked" %}
+                                <form method="post" class="d-inline">{% csrf_token %}
+                                <input type="hidden" name="action" value="block_step">
+                                <input type="hidden" name="step_id" value="{{ s.id }}">
+                                <input type="hidden" name="issue" value="Blocked from UI">
+                                <button class="btn btn-sm btn-outline-danger">Block</button></form>
+                            {% endif %}
+                            </div>
+                        </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="10" class="text-muted p-3">No steps.</td></tr>
+                    <tr><td colspan="8" class="text-muted p-3">No steps.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+    </div>
+</div>
+
+{# Quality report form #}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold">Add quality report</div>
+    <div class="card-body">
+        <form method="post" class="row g-2 align-items-end">{% csrf_token %}
+            <input type="hidden" name="action" value="add_qc">
+            <div class="col-md-3">
+                <label class="form-label small">Step</label>
+                <select name="step_id" class="form-select form-select-sm" required>
+                    {% for s in steps %}<option value="{{ s.id }}">{{ s.sequence }}. {{ s.title }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Result</label>
+                <select name="result" class="form-select form-select-sm">
+                    <option value="pass">Pass</option><option value="fail">Fail</option><option value="pending">Pending</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Inspection notes</label>
+                <input type="text" name="inspection_notes" class="form-control form-control-sm" placeholder="Notes...">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Material batch</label>
+                <input type="text" name="material_batch" class="form-control form-control-sm" placeholder="LOT-...">
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-sm btn-outline-primary w-100">Add QC</button>
+            </div>
+        </form>
     </div>
 </div>
 
 {% if qc_reports %}
-<div class="card shadow-sm">
+<div class="card shadow-sm mb-4">
     <div class="card-header bg-white fw-semibold">Quality reports</div>
     <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-sm mb-0 align-middle small">
-                <thead class="table-light">
-                    <tr>
-                        <th>Step</th>
-                        <th>Result</th>
-                        <th>Operator</th>
-                        <th>Material batch</th>
-                        <th>Notes</th>
-                        <th>Date</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for qr in qc_reports %}
-                    <tr>
-                        <td>Step {{ qr.work_order_step.sequence }}</td>
-                        <td>
-                            {% if qr.result == "pass" %}<span class="badge text-bg-success">Pass</span>
-                            {% elif qr.result == "fail" %}<span class="badge text-bg-danger">Fail</span>
-                            {% else %}<span class="badge text-bg-warning">Pending</span>{% endif %}
-                        </td>
-                        <td>{% if qr.operator %}{{ qr.operator.username }}{% else %}—{% endif %}</td>
-                        <td>{{ qr.material_batch|default:"—" }}</td>
-                        <td>{{ qr.inspection_notes|truncatewords:10|default:"—" }}</td>
-                        <td class="text-muted">{{ qr.created_at|date:"M d H:i" }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+        <table class="table table-sm mb-0 align-middle small">
+            <thead class="table-light">
+                <tr><th>Step</th><th>Result</th><th>Operator</th><th>Batch</th><th>Notes</th><th>Date</th></tr>
+            </thead>
+            <tbody>
+                {% for qr in qc_reports %}
+                <tr>
+                    <td>Step {{ qr.work_order_step.sequence }}</td>
+                    <td>{% if qr.result == "pass" %}<span class="badge text-bg-success">Pass</span>{% elif qr.result == "fail" %}<span class="badge text-bg-danger">Fail</span>{% else %}<span class="badge text-bg-warning">Pending</span>{% endif %}</td>
+                    <td>{% if qr.operator %}{{ qr.operator.username }}{% else %}—{% endif %}</td>
+                    <td>{{ qr.material_batch|default:"—" }}</td>
+                    <td>{{ qr.inspection_notes|truncatewords:10|default:"—" }}</td>
+                    <td class="text-muted">{{ qr.created_at|date:"M d H:i" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endif %}
 
-<div class="card mt-4 shadow-sm">
-    <div class="card-body">
-        <h2 class="h6 text-uppercase text-muted fw-semibold mb-2">Step execution API</h2>
-        <ul class="small text-muted mb-0">
-            <li><code>POST /api/v1/work-order-steps/{id}/start/</code> — start a step</li>
-            <li><code>POST /api/v1/work-order-steps/{id}/complete/</code> — mark complete</li>
-            <li><code>POST /api/v1/work-order-steps/{id}/block/</code> — flag blocked with issue</li>
-            <li><code>POST /api/v1/quality-reports/</code> — add QC result</li>
-        </ul>
+{# Machine state controls #}
+<div class="card shadow-sm">
+    <div class="card-header bg-white fw-semibold">Machine controls</div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0 align-middle small">
+            <thead class="table-light"><tr><th>Machine</th><th>Type</th><th>State</th><th>Change</th></tr></thead>
+            <tbody>
+                {% for m in machines %}
+                <tr>
+                    <td class="fw-semibold">{{ m.identifier }}</td>
+                    <td>{{ m.machine_type }}</td>
+                    <td><span class="badge {% if m.state == 'available' %}text-bg-success{% elif m.state == 'busy' %}text-bg-primary{% elif m.state == 'maintenance' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ m.get_state_display }}</span></td>
+                    <td>
+                        <form method="post" class="d-flex gap-1">{% csrf_token %}
+                        <input type="hidden" name="action" value="set_machine_state">
+                        <input type="hidden" name="machine_id" value="{{ m.id }}">
+                        <select name="state" class="form-select form-select-sm" style="width:auto">
+                            <option value="available"{% if m.state == "available" %} selected{% endif %}>Available</option>
+                            <option value="busy"{% if m.state == "busy" %} selected{% endif %}>Busy</option>
+                            <option value="maintenance"{% if m.state == "maintenance" %} selected{% endif %}>Maintenance</option>
+                            <option value="offline"{% if m.state == "offline" %} selected{% endif %}>Offline</option>
+                        </select>
+                        <button class="btn btn-sm btn-outline-secondary">Set</button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-muted p-3">No machines registered.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endblock %}

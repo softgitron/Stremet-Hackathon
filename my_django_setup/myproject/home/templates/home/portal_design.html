@@ -5,6 +5,10 @@
     <h1 class="h3 mb-1" style="color: var(--st-design);">Design &amp; manufacturing engineering</h1>
     <p class="text-muted mb-0">Manufacturing plans, steps, BOM, reusable blocks, and design support.</p>
 </div>
+<div class="d-flex gap-2">
+    <a href="{% url 'design_create_plan' %}" class="btn btn-primary">New plan</a>
+    <a href="{% url 'design_create_block' %}" class="btn btn-outline-primary">New block</a>
+</div>
 
 <div class="row g-3 mb-4">
     <div class="col-sm-6 col-lg-3">
@@ -107,6 +111,7 @@
                                 <td class="text-end">{{ p.estimated_total_time_minutes|floatformat:0 }}</td>
                                 <td class="text-end">{{ p.estimated_total_cost|floatformat:2 }}</td>
                                 <td class="text-muted">{{ p.created_at|date:"M d, Y" }}</td>
+                                <td><a href="{% url 'design_plan_detail' p.id %}" class="btn btn-sm btn-outline-primary">Open</a></td>
                             </tr>
                             {% empty %}
                             <tr><td colspan="5" class="text-muted p-3">No plans yet.</td></tr>
